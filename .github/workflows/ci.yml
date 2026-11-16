@@ -41,6 +41,8 @@ jobs:
           python-version: "3.12"
           cache: pip
       - uses: nf-core/setup-nextflow@v2
+        with:
+          version: "25.04.6"   # newer releases apply stricter syntax not yet checked here
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fastqc
       - run: pip install . multiqc
       - name: End-to-end test on simulated reads

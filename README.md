@@ -26,6 +26,71 @@ flowchart LR
     H --> J[report.html, plots, h5ad]
 ```
 
+## What it does
+
+| Stage | Tools | Output |
+|---|---|---|
+| Read QC | FastQC, MultiQC | Per-file quality report |
+| Quantification | kallisto, bustools | Cells x genes UMI counts per sample, mapping statistics |
+| Cell calling and QC | Scanpy, Scrublet | Empty droplets, damaged cells and doublets removed, with a per-sample audit |
+| Integration benchmark | PCA baseline, Harmony, ComBat | Each method scored on 7 metrics for batch mixing and biology kept |
+| Annotation | Leiden, marker scoring, Wilcoxon | Clusters, cell types and marker genes on the best embedding |
+| Reporting | Matplotlib, PostgreSQL | A self-contained `report.html`, CSVs, an `.h5ad`, and a results database |
+
+Everything runs from one command, in Docker, locally, on Slurm or in CI.
+
+## Results
+
+### Simulated data with known truth
+
+The test profile simulates two 10x v3 samples of 150 cells each, with three cell types,
+a gene-wise batch effect, a shift in composition between the samples, empty droplets and
+4% unmappable reads. Because the truth is known, the run can be checked rather than
+eyeballed:
+
+- 96.2% of reads pseudoaligned, matching the 4% of junk reads put in.
+- Cell calling kept exactly the 150 real cells per sample and dropped every empty droplet.
+  QC then removed 1 cell, leaving 299.
+- Marker-based labels matched the simulated cell type for all 299 cells; the final
+  cluster labels matched for 298.
+
+| Method | Batch removal | Biology kept | Overall |
+|---|---:|---:|---:|
+| **ComBat** (chosen) | 0.751 | 0.904 | **0.843** |
+| Harmony | 0.416 | 0.910 | 0.712 |
+| PCA, no correction | 0.313 | 0.781 | 0.594 |
+
+Scores run 0 to 1; overall = 0.4 x batch removal + 0.6 x biology kept. Uncorrected data
+scores lowest on biology as well as mixing, because the batch effect splits each cell type
+in two. ComBat wins here because the simulated effect follows exactly the per-gene shift
+and scale that ComBat assumes, so this result validates the scoring, not the method. Which
+method wins on real tissue is what the real-data run below is for.
+
+![UMAP per method, coloured by sample and by marker label](docs/images/method_grid.png)
+
+*Top row: without correction the two samples form separate islands within every cell type.
+Lower rows: after correction the samples overlap while the three cell types stay apart.*
+
+<table>
+<tr>
+<td><img src="docs/images/metric_heatmap.png" alt="Integration scores per method"></td>
+<td><img src="docs/images/integration_tradeoff.png" alt="Batch removal against biology kept"></td>
+</tr>
+<tr>
+<td><img src="docs/images/qc_sim1.png" alt="Barcode rank plot and QC for one sample"></td>
+<td><img src="docs/images/marker_dots.png" alt="Marker genes per cluster"></td>
+</tr>
+</table>
+
+The full report from this run is in [docs/example_report.html](docs/example_report.html);
+download it and open it in a browser.
+
+### Real data: 10x PBMC, v2 against v3 chemistry
+
+10x Genomics released two libraries from the same PBMC sample made with different
+chemistries, so any difference between them is technical. Results from this run will be
+added here; [docs/real_data.md](docs/real_data.md) has the steps to reproduce it.
+
 ## Quick start
 
 Requirements: Nextflow 24.04 or newer, and either Docker or Python 3.10+.
