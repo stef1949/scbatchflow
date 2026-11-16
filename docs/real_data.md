@@ -12,7 +12,7 @@ The commands below assume the `docker` profile and that you are in the repo fold
 shortcut for running tools from the image:
 
 ```bash
-alias sc='docker run --rm -u $(id -u):$(id -g) -v $HOME:$HOME -w $PWD scbatchflow:0.2.0'
+alias sc='docker run --rm -u $(id -u):$(id -g) -v $HOME:$HOME -w $PWD scbatchflow:0.2.1'
 ```
 
 ## 1. Download the FASTQs
@@ -80,8 +80,9 @@ If a step fails, fix the cause and rerun the same command with `-resume`. Then o
 
 ## 6. Results
 
-_To be filled in after the run: the benchmark table from `summary.md`, the trade-off plot,
-before/after UMAPs, and two or three sentences on which method you would choose and why._
+The first run is written up in the [README](../README.md#real-data-10x-pbmc-v2-against-v3-chemistry):
+Harmony scored highest (0.827 overall, against 0.750 for ComBat and 0.621 uncorrected),
+and cell-type composition matched between the two chemistries.
 
 ## Next: a tumour dataset
 

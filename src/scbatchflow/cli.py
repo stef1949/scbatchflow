@@ -122,12 +122,16 @@ def _cmd_finalise(a: argparse.Namespace) -> None:
     plots.mkdir(exist_ok=True)
     for src in a.qc_plots or []:
         shutil.copy(src, plots / ("qc_" + Path(src).name.replace(".qc.png", ".png")))
-    viz.plot_final_umaps(adata, plots, batch_key=a.batch_key)
+    # one colour per cell type across every figure: the union of all labels in play
+    labels = set(adata.obs["marker_label"].astype(str)) | set(adata.obs["cell_type"].astype(str))
+    viz.plot_final_umaps(adata, plots, batch_key=a.batch_key, label_universe=labels)
     viz.plot_method_grid(adata, {m: np.load(f) for m, f in emb_path.items()},
-                         plots / "method_grid.png", batch_key=a.batch_key, seed=a.seed)
+                         plots / "method_grid.png", batch_key=a.batch_key, seed=a.seed,
+                         label_universe=labels)
     viz.plot_metric_heatmap(table, plots / "metric_heatmap.png")
     viz.plot_tradeoff(table, plots / "integration_tradeoff.png")
-    viz.plot_composition(adata, plots / "composition.png", batch_key=a.batch_key)
+    viz.plot_composition(adata, plots / "composition.png", batch_key=a.batch_key,
+                         label_universe=labels)
     viz.plot_qc_violins(adata, plots / "qc_violins.png")
     if len(markers):
         viz.plot_marker_dots(adata, markers, plots / "marker_dots.png")

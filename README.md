@@ -41,6 +41,67 @@ Everything runs from one command, in Docker, locally, on Slurm or in CI.
 
 ## Results
 
+### Real data: 10x PBMC, v2 against v3 chemistry
+
+10x Genomics released two libraries of about 1,000 cells from the same PBMC sample, made
+with different chemistries. The cells are the same, so any difference between the two
+libraries is technical: a clean test of batch correction with a known right answer.
+
+| | v2 library | v3 library |
+|---|---:|---:|
+| Reads | 76.9 M | 66.6 M |
+| Pseudoaligned | 65.0% | 57.4% |
+| Cells called | 964 | 1,114 |
+| Removed: high mitochondrial / doublets | 7 / 9 | 35 / 7 |
+| Cells kept | 948 | 1,072 |
+| Median UMIs per cell | 4,038 | 7,407 |
+| Median genes per cell | 1,225 | 2,142 |
+
+v3 detected about 1.8 times as many genes per cell as v2, the kind of technical difference
+integration has to remove. The mapping rates are in the range usual for a transcriptome-only
+index, which does not count reads from introns.
+
+| Method | Batch removal | Biology kept | Overall |
+|---|---:|---:|---:|
+| **Harmony** (chosen) | 0.807 | 0.840 | **0.827** |
+| ComBat | 0.635 | 0.826 | 0.750 |
+| PCA, no correction | 0.373 | 0.786 | 0.621 |
+
+Harmony mixed the two libraries best (iLISI 0.87 against 0.58 for ComBat) while keeping cell
+types at least as well separated. ComBat, which won on the simulated data below, left the
+monocytes partly split by chemistry. The two datasets disagree on the best method, which is
+the reason the pipeline benchmarks per dataset instead of fixing one method.
+
+![UMAP per method, coloured by chemistry and by marker label](docs/images/pbmc/method_grid.png)
+
+*Top row: without correction every cell type splits into a v2 half and a v3 half. Bottom row:
+after Harmony the two chemistries overlap and the five cell types stay distinct.*
+
+<table>
+<tr>
+<td><img src="docs/images/pbmc/metric_heatmap.png" alt="Integration scores per method"></td>
+<td><img src="docs/images/pbmc/integration_tradeoff.png" alt="Batch removal against biology kept"></td>
+</tr>
+<tr>
+<td><img src="docs/images/pbmc/barcode_rank_v3.png" alt="Barcode rank plot for the v3 library"></td>
+<td><img src="docs/images/pbmc/composition.png" alt="Cell-type composition per library"></td>
+</tr>
+</table>
+
+Composition is almost identical between the libraries (T cells 40% and 39%, monocytes 32%
+and 31%, B cells 15% and 17%, NK cells 11% and 10%), as it should be for the same cells.
+2,020 cells passed QC, 2.2% had no clear marker label, and Leiden found 14 clusters.
+
+What this run does not settle:
+
+- cLISI was 1.00 for every method, including no correction, so it did not separate the
+  methods here; the biology score rests on label ASW, ARI and NMI.
+- Two clusters (3 and 6) are defined by ribosomal and mitochondrial genes rather than
+  identity markers, so they more likely reflect cell state or quality than distinct types.
+- The v3 cells carry more mitochondrial reads (median 10.3% against 3.8%), so the
+  per-sample adaptive cut-off differed between libraries (10.8% for v2, 20% for v3).
+- Two libraries from one donor is a small test. A multi-donor cohort is the next step.
+
 ### Simulated data with known truth
 
 The test profile simulates two 10x v3 samples of 150 cells each, with three cell types,
@@ -63,8 +124,8 @@ eyeballed:
 Scores run 0 to 1; overall = 0.4 x batch removal + 0.6 x biology kept. Uncorrected data
 scores lowest on biology as well as mixing, because the batch effect splits each cell type
 in two. ComBat wins here because the simulated effect follows exactly the per-gene shift
-and scale that ComBat assumes, so this result validates the scoring, not the method. Which
-method wins on real tissue is what the real-data run below is for.
+and scale that ComBat assumes, so this result validates the scoring, not the method. On the
+real PBMC data above, Harmony won instead.
 
 ![UMAP per method, coloured by sample and by marker label](docs/images/method_grid.png)
 
@@ -85,19 +146,13 @@ Lower rows: after correction the samples overlap while the three cell types stay
 The full report from this run is in [docs/example_report.html](docs/example_report.html);
 download it and open it in a browser.
 
-### Real data: 10x PBMC, v2 against v3 chemistry
-
-10x Genomics released two libraries from the same PBMC sample made with different
-chemistries, so any difference between them is technical. Results from this run will be
-added here; [docs/real_data.md](docs/real_data.md) has the steps to reproduce it.
-
 ## Quick start
 
 Requirements: Nextflow 24.04 or newer, and either Docker or Python 3.10+.
 
 ```bash
 # 1. End-to-end test on simulated reads (about 90 seconds on 2 CPUs)
-pip install . multiqc                      # or: docker build -t scbatchflow:0.2.0 .
+pip install . multiqc                      # or: docker build -t scbatchflow:0.2.1 .
 nextflow run . -profile test               # add ,docker to run inside the container
 
 # 2. With the results database
@@ -133,7 +188,7 @@ nextflow run . -profile docker \
 ```
 
 With the `docker` profile, `scbf` and `kb` live inside the image; prefix those two commands
-with `docker run --rm -u $(id -u):$(id -g) -v $PWD:$PWD -w $PWD scbatchflow:0.2.0`.
+with `docker run --rm -u $(id -u):$(id -g) -v $PWD:$PWD -w $PWD scbatchflow:0.2.1`.
 
 The samplesheet has one row per FASTQ pair, and rows that share a `sample` are treated as
 lanes. The `technology` column sets the chemistry per sample (default `--technology 10xv3`),
@@ -239,8 +294,8 @@ biology metrics.
 
 ## Limitations
 
-- Automated tests use simulated data only. Real-data results belong in
-  [docs/real_data.md](docs/real_data.md) once run.
+- Automated tests use simulated data; real data has been run once, on the 10x PBMC pair
+  above.
 - Marker-based labels are only as good as the marker file, and the biology metrics inherit
   that. For a new tissue, check the `Unassigned` rate first.
 - Order-of-magnitude cell calling misses low-RNA cell types in heterogeneous samples.
@@ -251,7 +306,8 @@ biology metrics.
 
 ## Roadmap
 
-- [ ] Real-data benchmark: 10x PBMC v2 vs v3 chemistry, then a public tumour cohort
+- [x] Real-data benchmark: 10x PBMC v2 vs v3 chemistry
+- [ ] A public multi-donor tumour cohort
 - [ ] Add scVI and a HarmonizeNN encoder as integration methods
 - [ ] Pseudobulk differential expression per cell type between conditions
 - [ ] EmptyDrops-style cell calling and ambient-RNA correction

@@ -82,6 +82,10 @@ def test_figures_and_report(tmp_path):
 def test_colours_follow_the_entity_not_its_position():
     assert viz.colour_map(["b", "a"])["a"] == viz.colour_map(["a", "c", "b"])["a"]
     assert viz.colour_map(["x", "Unassigned"])["Unassigned"] == viz.NEUTRAL
+    # composition shows only final types; the method grid also shows rarer marker labels
+    universe = {"B cell", "Monocyte", "Platelet", "T cell"}
+    assert (viz.colour_map(["B cell", "T cell"], universe)["T cell"]
+            == viz.colour_map(["B cell", "Platelet", "T cell"], universe)["T cell"])
 
 
 def test_finalise_names_clusters_from_marker_labels():

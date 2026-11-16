@@ -142,8 +142,10 @@ def build_report(results_dir: str | Path, run_label: str = "", batch_key: str = 
 <div class="tiles">{tile_html}</div>
 
 <section><h2>1. Read mapping and the QC funnel</h2>
-<p class="how">How to read it: follow each sample left to right. A mapping rate far below 90%
-usually means the wrong chemistry or reference. A large gap between cells called and cells
+<p class="how">How to read it: follow each sample left to right. With a transcriptome-only
+index, mapping rates of roughly 50 to 70% are common for 10x data, because reads from introns
+are not counted. A rate far below that, or very different between samples, usually means the
+wrong chemistry or reference. A large gap between cells called and cells
 kept means QC is removing a lot; look at which rule did it.</p>
 {_table(funnel, funnel_fmt)}
 {qc_imgs}

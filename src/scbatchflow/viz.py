@@ -38,10 +38,13 @@ plt.rcParams.update({
 })
 
 
-def colour_map(values) -> dict[str, str]:
-    """Fixed colour per category, by sorted name. More than 8 categories reuse hues, so
-    figures that can exceed 8 (clusters) also label the groups on the plot itself."""
-    cats = sorted({str(v) for v in values} - {"Unassigned"}, key=_natural)
+def colour_map(values, universe=None) -> dict[str, str]:
+    """Fixed colour per category, by sorted name. Pass the same `universe` (every label
+    that can appear in any figure) so a cell type keeps one colour across all figures.
+    More than 8 categories reuse hues, so figures that can exceed 8 (clusters) also label
+    the groups on the plot itself."""
+    pool = {str(v) for v in values} | {str(v) for v in (universe or [])}
+    cats = sorted(pool - {"Unassigned"}, key=_natural)
     out = {c: CATEGORICAL[i % len(CATEGORICAL)] for i, c in enumerate(cats)}
     out["Unassigned"] = NEUTRAL
     return out
@@ -67,9 +70,9 @@ def umap_coords(embedding: np.ndarray, seed: int = 0) -> np.ndarray:
     return np.asarray(tmp.obsm["X_umap"])
 
 
-def _scatter(ax, xy, labels, title, legend=True, centroids=False, seed=0):
+def _scatter(ax, xy, labels, title, legend=True, centroids=False, seed=0, universe=None):
     labels = np.asarray([str(v) for v in labels])
-    colours = colour_map(labels)
+    colours = colour_map(labels, universe)
     order = np.random.default_rng(seed).permutation(len(labels))  # no group drawn on top
     size = float(np.clip(6000 / max(len(labels), 1), 1.5, 14))
     ax.scatter(xy[order, 0], xy[order, 1], c=[colours[v] for v in labels[order]], s=size,
@@ -94,28 +97,33 @@ def _scatter(ax, xy, labels, title, legend=True, centroids=False, seed=0):
                   handletextpad=0.2, labelcolor=SECONDARY)
 
 
-def plot_final_umaps(adata: ad.AnnData, outdir, batch_key: str = "sample") -> list[Path]:
+def plot_final_umaps(adata: ad.AnnData, outdir, batch_key: str = "sample",
+                     label_universe=None) -> list[Path]:
     """One file per colouring, plus a three-panel overview for the report."""
     out = Path(outdir)
     xy = np.asarray(adata.obsm["X_umap"])
     method = adata.uns.get("integration_method", "")
     panels = [(batch_key, f"By {batch_key}", False), ("cell_type", "By cell type", False),
               ("cluster", "By cluster", True)]
+    uni = {"cell_type": label_universe}
     paths = []
     for key, title, cen in panels:
         fig, ax = plt.subplots(figsize=(5.6, 4.4))
-        _scatter(ax, xy, adata.obs[key], f"{title} ({method})", centroids=cen, legend=not cen)
+        _scatter(ax, xy, adata.obs[key], f"{title} ({method})", centroids=cen, legend=not cen,
+                 universe=uni.get(key))
         paths.append(_save(fig, out / f"umap_{'sample' if key == batch_key else key}.png"))
     fig, axes = plt.subplots(1, 3, figsize=(15, 4.4))
     for ax, (key, title, cen) in zip(axes, panels, strict=True):
-        _scatter(ax, xy, adata.obs[key], title, centroids=cen, legend=not cen)
+        _scatter(ax, xy, adata.obs[key], title, centroids=cen, legend=not cen,
+                 universe=uni.get(key))
     fig.subplots_adjust(wspace=0.45)
     paths.append(_save(fig, out / "umap_overview.png"))
     return paths
 
 
 def plot_method_grid(adata: ad.AnnData, embeddings: dict[str, np.ndarray], path,
-                     batch_key: str = "sample", max_cells: int = 20000, seed: int = 0) -> Path:
+                     batch_key: str = "sample", max_cells: int = 20000, seed: int = 0,
+                     label_universe=None) -> Path:
     """Before and after: one row per method, coloured by batch and by marker label."""
     idx = np.arange(adata.n_obs)
     if adata.n_obs > max_cells:
@@ -128,7 +136,7 @@ def plot_method_grid(adata: ad.AnnData, embeddings: dict[str, np.ndarray], path,
         _scatter(axes[row, 0], xy, adata.obs[batch_key].to_numpy()[idx],
                  f"{name}: by {batch_key}", seed=seed)
         _scatter(axes[row, 1], xy, adata.obs["marker_label"].to_numpy()[idx],
-                 f"{name}: by marker label", seed=seed)
+                 f"{name}: by marker label", seed=seed, universe=label_universe)
     fig.subplots_adjust(wspace=0.5, hspace=0.25)
     return _save(fig, path)
 
@@ -185,10 +193,11 @@ def plot_tradeoff(table: pd.DataFrame, path) -> Path:
     return _save(fig, path)
 
 
-def plot_composition(adata: ad.AnnData, path, batch_key: str = "sample") -> Path:
+def plot_composition(adata: ad.AnnData, path, batch_key: str = "sample",
+                     label_universe=None) -> Path:
     tab = pd.crosstab(adata.obs[batch_key].astype(str), adata.obs["cell_type"].astype(str),
                       normalize="index") * 100
-    colours = colour_map(tab.columns)
+    colours = colour_map(tab.columns, label_universe)
     cols = sorted([c for c in tab.columns if c != "Unassigned"]) + \
         (["Unassigned"] if "Unassigned" in tab.columns else [])
     fig, ax = plt.subplots(figsize=(7.5, 0.9 + 0.5 * len(tab)))
@@ -312,8 +321,8 @@ def plot_sample_qc(raw: ad.AnnData, kept: set[str], summary: dict, path) -> Path
     size = float(np.clip(5000 / max(called.sum(), 1), 2, 12))
     b.scatter(n_genes[is_kept], pct_mito[is_kept], s=size, color=CATEGORICAL[0], alpha=0.6,
               linewidths=0, rasterized=True, label=f"kept ({int(is_kept.sum()):,})")
-    b.scatter(n_genes[removed], pct_mito[removed], s=size * 1.6, color=BAD, alpha=0.85,
-              linewidths=0, marker="x" if removed.sum() < 2000 else "o", rasterized=True,
+    b.scatter(n_genes[removed], pct_mito[removed], s=max(size * 2.5, 16), color=BAD, alpha=0.9,
+              linewidths=1.3, marker="x", zorder=3, rasterized=True,
               label=f"removed ({int(removed.sum()):,})")
     if "pct_mito_cut" in summary:
         b.axhline(summary["pct_mito_cut"], color=MUTED, linewidth=1, linestyle=(0, (4, 3)))

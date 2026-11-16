@@ -72,5 +72,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t scbatchflow:0.2.0 .
-      - run: docker run --rm scbatchflow:0.2.0 scbf --version
+      - run: docker build -t scbatchflow:0.2.1 .
+      - run: docker run --rm scbatchflow:0.2.1 scbf --version
