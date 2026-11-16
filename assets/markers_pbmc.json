@@ -1,0 +1,8 @@
+{
+  "T cell": ["CD3D", "CD3E", "IL7R", "TRAC", "CD2"],
+  "NK cell": ["NKG7", "GNLY", "KLRD1", "NCAM1"],
+  "B cell": ["MS4A1", "CD79A", "CD79B", "BANK1"],
+  "Monocyte": ["LYZ", "S100A8", "S100A9", "CD14", "FCGR3A"],
+  "Dendritic cell": ["FCER1A", "CLEC10A", "CST3"],
+  "Platelet": ["PPBP", "PF4"]
+}

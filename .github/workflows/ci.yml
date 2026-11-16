@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: pytest -q
+      - name: Schema file is in sync with the code
+        run: |
+          scbf db-schema --out /tmp/schema.sql
+          diff -u db/schema.sql /tmp/schema.sql
+
+  pipeline:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: scbf
+          POSTGRES_PASSWORD: scbf
+          POSTGRES_DB: scbatchflow
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U scbf" --health-interval 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: nf-core/setup-nextflow@v2
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fastqc
+      - run: pip install . multiqc
+      - name: End-to-end test on simulated reads
+        run: >
+          nextflow run . -profile test
+          --db_url postgresql+psycopg2://scbf:scbf@localhost:5432/scbatchflow
+          --run_id ci
+      - name: Results reached the database
+        env:
+          PGPASSWORD: scbf
+        run: |
+          n=$(psql -h localhost -U scbf -d scbatchflow -tAc "select count(*) from cell where run_id='ci'")
+          echo "cells loaded: $n"
+          test "$n" -gt 250
+          psql -h localhost -U scbf -d scbatchflow -v run_id=ci -f db/queries.sql
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: |
+            results_test/results/summary.md
+            results_test/results/report.html
+            results_test/results/plots
+            results_test/pipeline_info
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t scbatchflow:0.2.0 .
+      - run: docker run --rm scbatchflow:0.2.0 scbf --version

@@ -1,0 +1,22 @@
+# Local results database:  docker compose up -d
+# URL: postgresql+psycopg2://scbf:scbf@localhost:5432/scbatchflow
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: scbf
+      POSTGRES_PASSWORD: scbf
+      POSTGRES_DB: scbatchflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scbf -d scbatchflow"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  pgdata:

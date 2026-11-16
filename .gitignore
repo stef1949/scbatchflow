@@ -1,0 +1,15 @@
+work/
+.nextflow*
+results*/
+*.h5ad
+*.fastq.gz
+*.idx
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.env
+*.tar
+data/
+ref/
+samplesheet.csv

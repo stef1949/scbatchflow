@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scbatchflow"
+version = "0.2.0"
+description = "Single-cell RNA-seq from raw 10x reads to benchmarked batch integration, with results in PostgreSQL"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "anndata>=0.10",
+    "scanpy>=1.10",
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "scipy>=1.11",
+    "scikit-learn>=1.4",
+    "scikit-image>=0.22",
+    "harmonypy>=0.0.10",
+    "leidenalg>=0.10",
+    "igraph>=0.11",
+    "matplotlib>=3.8",
+    "sqlalchemy>=2.0",
+    "psycopg2-binary>=2.9",
+    "kb-python>=0.28",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[project.scripts]
+scbf = "scbatchflow.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::FutureWarning", "ignore::DeprecationWarning", "ignore::UserWarning"]
